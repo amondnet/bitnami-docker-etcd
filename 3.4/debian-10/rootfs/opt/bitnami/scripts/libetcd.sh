@@ -311,6 +311,8 @@ etcd_store_member_id() {
     etcd_start_bg
     read -r -a extra_flags <<<"$(etcdctl_auth_flags)"
     is_boolean_yes "$ETCD_ON_K8S" && extra_flags+=("--endpoints=$(etcdctl_get_endpoints)")
+    local -r retries=30
+    local -r sleep=5
     if retry_while "etcdctl ${extra_flags[*]} member list" >/dev/null 2>&1; then
         while [[ ! -s "${ETCD_DATA_DIR}/member_id" ]]; do
             # We use 'stdbuf' to ensure memory buffers are flushed to disk
@@ -320,6 +322,9 @@ etcd_store_member_id() {
             stdbuf -oL etcdctl "${extra_flags[@]}" member list | grep -w "${advertised_array[0]}" | awk -F "," '{ print $1}' >"${ETCD_DATA_DIR}/member_id" || true
         done
         info "Stored member ID: $(cat "${ETCD_DATA_DIR}/member_id")"
+    else
+        error "Could not get member ID"
+        return 1
     fi
     etcd_stop
 }
